@@ -12,7 +12,9 @@ No dependencies — Python 3.9+ standard library only.
 python3 app.py
 ```
 
-Then open `http://<server>:8000/` on any machine that can reach it.
+Then open `http://<server>:8000/clip` on any machine that can reach it. The app
+mounts itself under `/clip` by default and serves a plain holding page at `/`; set
+`CLIPBOARD_BASE_PATH=` (empty) to serve it at the root instead.
 
 ## Using it
 
@@ -35,8 +37,8 @@ All optional, via environment variables:
 | --- | --- | --- |
 | `CLIPBOARD_HOST` | `0.0.0.0` | Bind address. Use `127.0.0.1` behind a reverse proxy. |
 | `CLIPBOARD_PORT` | `$PORT`, else `8000` | Bind port. Hosts like Render inject `$PORT`; leave both unset there. |
-| `CLIPBOARD_BASE_PATH` | `""` (root) | Mount the whole app under a prefix, e.g. `/clip`. |
-| `CLIPBOARD_ROOT_PAGE` | `static/root.html` | Holding page served at `/` when a base path is set, so the domain root is not the clipboard. |
+| `CLIPBOARD_BASE_PATH` | `/clip` | Prefix the app mounts under. Set to another prefix to move it, or to empty to serve at the root. |
+| `CLIPBOARD_ROOT_PAGE` | `static/root.html` | Holding page served at `/` whenever a base path is in use, so the domain root is not the clipboard. |
 | `CLIPBOARD_DATA_DIR` | `./storage` | Where blobs and metadata are written. |
 | `CLIPBOARD_MAX_BYTES` | `104857600` (100 MiB) | Largest accepted upload. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Items older than this are deleted on the next request. `0` disables expiry. |
@@ -82,10 +84,10 @@ instance from anywhere public.
 | `DELETE` | `/api/items` | Delete everything. |
 | `GET` | `/healthz` | Liveness check, for platform health checks. |
 
-When `CLIPBOARD_BASE_PATH` is set, every path above sits under it
-(`/clip/api/items`, and so on). `/robots.txt` and `/healthz` answer at the true root
-as well, since crawlers only read robots.txt from the domain root and health checks
-are often configured without the prefix.
+Every path above sits under the mount prefix (`/clip/api/items`, and so on).
+`/robots.txt` and `/healthz` answer at the true root as well, since crawlers only
+read robots.txt from the domain root and health checks are often configured without
+the prefix.
 
 So you can drive it from a shell too:
 

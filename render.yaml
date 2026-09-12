@@ -20,10 +20,10 @@ services:
     healthCheckPath: /clip/healthz
 
     envVars:
-      # Mount point: the app serves itself under this prefix. Anything proxying
-      # to this service must forward the prefix rather than strip it.
-      - key: CLIPBOARD_BASE_PATH
-        value: /clip
+      # NOTE: CLIPBOARD_BASE_PATH is deliberately not set -- the app already
+      # mounts itself under /clip by default. Set it only to move the app to a
+      # different prefix, or to "" to serve it at the domain root. Anything
+      # proxying to this service must forward the prefix rather than strip it.
 
       # Render's storage is ephemeral: anything written here is lost on every
       # deploy and restart. That suits a scratch clipboard, and /tmp makes it

@@ -9,10 +9,8 @@ URL you want, and the app supports both — the only difference is one env var.
 
 ### Case A — this service owns `dpop.fun`
 
-Attach `dpop.fun` as a custom domain on this service and let the app serve the
-`/clip` prefix itself.
-
-    CLIPBOARD_BASE_PATH=/clip
+Attach `dpop.fun` as a custom domain on this service. The app serves the `/clip`
+prefix by default, so there is nothing to configure.
 
 `https://dpop.fun/clip` serves the page. The domain root serves a plain holding
 page (`static/root.html`) that says nothing about the clipboard and links nowhere,
@@ -23,8 +21,7 @@ Every other path on the domain 404s.
 ### Case B — something else already owns `dpop.fun`
 
 Give this service its own hostname (the free `clipboard-xxxx.onrender.com` is
-fine) and have whatever serves `dpop.fun` proxy `/clip` to it, keeping
-`CLIPBOARD_BASE_PATH=/clip`:
+fine) and have whatever serves `dpop.fun` proxy `/clip` to it:
 
 ```nginx
 location /clip {
@@ -59,13 +56,14 @@ New → Web Service → connect `gavinhamilton1/clipboard`, then:
 | Health check path | `/clip/healthz` |
 | Auto-deploy | On commit (default) |
 
-Environment variables:
+Environment variables — **all optional**. The app serves `/clip` with a holding page
+at `/` out of the box; these only change the defaults:
 
 | Key | Value | Why |
 | --- | --- | --- |
-| `CLIPBOARD_BASE_PATH` | `/clip` | Serve under the subpath. Leave empty to serve at the root. |
 | `CLIPBOARD_DATA_DIR` | `/tmp/clipboard` | Render's disk is ephemeral anyway; `/tmp` makes that explicit. |
 | `CLIPBOARD_ROOT_PAGE` | *(unset)* | Only if you want a holding page other than `static/root.html` at the domain root. |
+| `CLIPBOARD_BASE_PATH` | *(unset)* | Only to move the app off `/clip`, or set it empty to serve at the domain root. |
 | `CLIPBOARD_MAX_BYTES` | `52428800` | 50 MiB. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Reap anything you forgot to clear. |
 

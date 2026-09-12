@@ -6,7 +6,7 @@ Standard library only -- run with `python3 app.py`.
 Configuration (environment variables):
     CLIPBOARD_HOST          bind address            (default 0.0.0.0)
     CLIPBOARD_PORT          bind port               (default $PORT, else 8000)
-    CLIPBOARD_BASE_PATH     mount point, e.g. /clip (default "", the root)
+    CLIPBOARD_BASE_PATH     mount point            (default /clip; "" = root)
     CLIPBOARD_ROOT_PAGE     holding page served at / when mounted under a prefix
                             (default static/root.html)
     CLIPBOARD_DATA_DIR      storage directory       (default ./storage)
@@ -44,7 +44,11 @@ def normalize_base_path(raw: str) -> str:
 HOST = os.environ.get("CLIPBOARD_HOST", "0.0.0.0")
 # PORT is what Render (and most PaaS hosts) inject; CLIPBOARD_PORT wins locally.
 PORT = int(os.environ.get("CLIPBOARD_PORT") or os.environ.get("PORT") or 8000)
-BASE_PATH = normalize_base_path(os.environ.get("CLIPBOARD_BASE_PATH", ""))
+# The app mounts itself under this prefix by default, so a deployment needs no
+# configuration to serve /clip with a holding page at the domain root. Set
+# CLIPBOARD_BASE_PATH to another prefix to move it, or to "" to serve at the root.
+DEFAULT_BASE_PATH = "/clip"
+BASE_PATH = normalize_base_path(os.environ.get("CLIPBOARD_BASE_PATH", DEFAULT_BASE_PATH))
 ROOT_PAGE = Path(os.environ.get("CLIPBOARD_ROOT_PAGE", STATIC_DIR / "root.html"))
 DATA_DIR = Path(os.environ.get("CLIPBOARD_DATA_DIR", BASE_DIR / "storage")).resolve()
 ITEMS_DIR = DATA_DIR / "items"
