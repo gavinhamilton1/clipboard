@@ -1,0 +1,12 @@
+# Example Caddy site block for the clipboard app.
+
+clip.example.internal {
+    header {
+        X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate"
+        Referrer-Policy "no-referrer"
+    }
+    request_body {
+        max_size 100MB
+    }
+    reverse_proxy 127.0.0.1:8000
+}

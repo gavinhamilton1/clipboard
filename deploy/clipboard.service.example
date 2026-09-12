@@ -1,0 +1,21 @@
+# Example systemd unit. Copy to /etc/systemd/system/clipboard.service,
+# adjust User/paths, then: systemctl enable --now clipboard
+
+[Unit]
+Description=Cross-system clipboard
+After=network.target
+
+[Service]
+Type=simple
+User=clipboard
+WorkingDirectory=/opt/clipboard
+Environment=CLIPBOARD_HOST=127.0.0.1
+Environment=CLIPBOARD_PORT=8000
+Environment=CLIPBOARD_DATA_DIR=/var/lib/clipboard
+Environment=CLIPBOARD_MAX_BYTES=104857600
+Environment=CLIPBOARD_MAX_AGE_HOURS=24
+ExecStart=/usr/bin/python3 /opt/clipboard/app.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

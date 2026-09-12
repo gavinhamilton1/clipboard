@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate">
+<meta name="googlebot" content="noindex, nofollow, noarchive, nosnippet, noimageindex">
+<meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet">
+<meta name="referrer" content="no-referrer">
+<title>Clipboard</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>Clipboard</h1>
+    <p class="sub">Paste or upload here, pick it up on another machine. Clear it when you are done.</p>
+  </header>
+
+  <section class="card">
+    <label for="text" class="label">Text</label>
+    <textarea id="text" placeholder="Paste or type text, then press Send (Ctrl/&#8984;+Enter)" rows="5"></textarea>
+    <div class="row">
+      <button id="send-text" class="primary">Send text</button>
+      <button id="clear-input" class="ghost">Clear box</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <span class="label">File</span>
+    <div id="drop" class="drop">
+      <p>Drop files here, paste an image, or <button id="browse" class="link">browse</button></p>
+      <input id="file" type="file" multiple hidden>
+    </div>
+    <div id="progress" class="progress" hidden><div id="bar"></div></div>
+  </section>
+
+  <section>
+    <div class="list-head">
+      <h2>On the server <span id="count" class="count"></span></h2>
+      <div class="row">
+        <button id="refresh" class="ghost">Refresh</button>
+        <button id="clear-all" class="danger">Clear all</button>
+      </div>
+    </div>
+    <ul id="items" class="items"></ul>
+    <p id="empty" class="empty">Nothing here yet.</p>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+<script src="/app.js"></script>
+</body>
+</html>
