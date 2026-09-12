@@ -1,0 +1,4 @@
+# No third-party dependencies -- app.py is Python standard library only.
+#
+# This file exists because Render's default Python build command is
+# `pip install -r requirements.txt`, which fails if the file is missing.

@@ -5,7 +5,8 @@ Standard library only -- run with `python3 app.py`.
 
 Configuration (environment variables):
     CLIPBOARD_HOST          bind address            (default 0.0.0.0)
-    CLIPBOARD_PORT          bind port               (default 8000)
+    CLIPBOARD_PORT          bind port               (default $PORT, else 8000)
+    CLIPBOARD_BASE_PATH     mount point, e.g. /clip (default "", the root)
     CLIPBOARD_DATA_DIR      storage directory       (default ./storage)
     CLIPBOARD_MAX_BYTES     max upload size         (default 104857600 = 100 MiB)
     CLIPBOARD_MAX_AGE_HOURS auto-delete items older (default 24, 0 disables)
@@ -29,8 +30,19 @@ from urllib.parse import quote, unquote, urlparse
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
+
+def normalize_base_path(raw: str) -> str:
+    """"/clip/" -> "/clip"; "" and "/" -> "" (mounted at the root)."""
+    raw = raw.strip().rstrip("/")
+    if not raw:
+        return ""
+    return raw if raw.startswith("/") else "/" + raw
+
+
 HOST = os.environ.get("CLIPBOARD_HOST", "0.0.0.0")
-PORT = int(os.environ.get("CLIPBOARD_PORT", "8000"))
+# PORT is what Render (and most PaaS hosts) inject; CLIPBOARD_PORT wins locally.
+PORT = int(os.environ.get("CLIPBOARD_PORT") or os.environ.get("PORT") or 8000)
+BASE_PATH = normalize_base_path(os.environ.get("CLIPBOARD_BASE_PATH", ""))
 DATA_DIR = Path(os.environ.get("CLIPBOARD_DATA_DIR", BASE_DIR / "storage")).resolve()
 ITEMS_DIR = DATA_DIR / "items"
 MAX_BYTES = int(os.environ.get("CLIPBOARD_MAX_BYTES", str(100 * 1024 * 1024)))
@@ -236,6 +248,25 @@ class Handler(BaseHTTPRequestHandler):
     def route(self, method: str) -> None:
         path = urlparse(self.path).path
         try:
+            if BASE_PATH:
+                if path == BASE_PATH:
+                    # Not strictly needed (links are absolute), but a bare mount
+                    # point should still land on the app rather than 404.
+                    return self.send_redirect(BASE_PATH + "/")
+                if path in ("/", ""):
+                    return self.send_redirect(BASE_PATH + "/")
+                if path.startswith(BASE_PATH + "/"):
+                    path = path[len(BASE_PATH):]
+                elif path not in ("/robots.txt", "/healthz"):
+                    # Crawlers only ever read robots.txt from the domain root, and
+                    # a platform health check may be configured without the prefix,
+                    # so those two stay reachable there; everything else does not.
+                    return self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+
+            if method == "GET" and path == "/healthz":
+                return self.send_bytes(HTTPStatus.OK, b"ok", "text/plain; charset=utf-8")
+            if method == "GET" and path in ("/", "/index.html"):
+                return self.serve_index()
             if method == "GET" and path in STATIC_FILES:
                 return self.serve_static(path)
             if method == "GET" and path == "/api/items":
@@ -271,6 +302,21 @@ class Handler(BaseHTTPRequestHandler):
                 pass
 
     # ---- endpoints ------------------------------------------------------ #
+
+    def send_redirect(self, location: str) -> None:
+        self.send_response(HTTPStatus.MOVED_PERMANENTLY)
+        self._base_headers("text/plain; charset=utf-8", 0)
+        self.send_header("Location", location)
+        self.end_headers()
+
+    def serve_index(self) -> None:
+        """The page is templated so every URL it emits carries the mount prefix."""
+        try:
+            html = (STATIC_DIR / "index.html").read_text("utf-8")
+        except OSError:
+            return self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
+        self.send_bytes(HTTPStatus.OK, html.replace("{{BASE}}", BASE_PATH).encode("utf-8"),
+                        "text/html; charset=utf-8")
 
     def serve_static(self, path: str) -> None:
         filename, content_type = STATIC_FILES[path]
@@ -384,7 +430,8 @@ def main() -> None:
     reap_expired()
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     server.daemon_threads = True
-    print(f"clipboard serving on http://{HOST}:{PORT}")
+    print(f"clipboard serving on http://{HOST}:{PORT}{BASE_PATH}/")
+    print(f"  mounted:   {BASE_PATH or '/'}")
     print(f"  storage:   {DATA_DIR}")
     print(f"  max size:  {MAX_BYTES} bytes")
     print(f"  max age:   {'disabled' if MAX_AGE_SECONDS <= 0 else f'{MAX_AGE_SECONDS / 3600:g}h'}")

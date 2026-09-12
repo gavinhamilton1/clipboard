@@ -1,0 +1,49 @@
+# Render Blueprint for the clipboard app.
+#
+# Optional: the service can equally be created by hand in the Render dashboard
+# (see deploy/RENDER.md for the exact settings). If you do use this file,
+# Render reads it from the default branch.
+
+services:
+  - type: web
+    name: clipboard
+    runtime: python
+    plan: starter
+    branch: main
+    autoDeploy: true
+
+    # The app has no dependencies; this just satisfies Render's Python build.
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 app.py
+
+    # Cheap endpoint, so health checks do not re-render the page every time.
+    healthCheckPath: /clip/healthz
+
+    envVars:
+      # Mount point: the app serves itself under this prefix. Anything proxying
+      # to this service must forward the prefix rather than strip it.
+      - key: CLIPBOARD_BASE_PATH
+        value: /clip
+
+      # Render's storage is ephemeral: anything written here is lost on every
+      # deploy and restart. That suits a scratch clipboard, and /tmp makes it
+      # explicit. Point this at a mounted disk instead if you want persistence.
+      - key: CLIPBOARD_DATA_DIR
+        value: /tmp/clipboard
+
+      # 50 MiB. Larger uploads are more likely to run into platform request
+      # timeouts than to fail on size, so keep this conservative when hosted.
+      - key: CLIPBOARD_MAX_BYTES
+        value: "52428800"
+
+      - key: CLIPBOARD_MAX_AGE_HOURS
+        value: "24"
+
+    # Persistent storage across deploys -- requires a paid instance type and
+    # disables zero-downtime deploys. Uncomment this and set CLIPBOARD_DATA_DIR
+    # to /var/data/clipboard if you want clips to survive a redeploy.
+    #
+    # disk:
+    #   name: clipboard-data
+    #   mountPath: /var/data
+    #   sizeGB: 1

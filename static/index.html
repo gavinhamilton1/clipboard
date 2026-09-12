@@ -8,8 +8,8 @@
 <meta name="bingbot" content="noindex, nofollow, noarchive, nosnippet">
 <meta name="referrer" content="no-referrer">
 <title>Clipboard</title>
-<link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="{{BASE}}/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="{{BASE}}/style.css">
 </head>
 <body>
 <main>
@@ -50,6 +50,7 @@
 </main>
 
 <div id="toast" class="toast" hidden></div>
-<script src="/app.js"></script>
+<script>window.CLIP_BASE = "{{BASE}}";</script>
+<script src="{{BASE}}/app.js"></script>
 </body>
 </html>

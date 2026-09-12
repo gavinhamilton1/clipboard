@@ -9,6 +9,8 @@ const els = {
   refresh: $("refresh"), clearAll: $("clear-all"), toast: $("toast"),
 };
 
+// Server-injected mount prefix ("" at the root, "/clip" when mounted there).
+const BASE = window.CLIP_BASE || "";
 const POLL_MS = 4000;
 let lastRender = "";
 let toastTimer = null;
@@ -120,7 +122,7 @@ function render(items) {
     }
 
     const download = document.createElement("a");
-    download.href = "/api/items/" + item.id + "/download";
+    download.href = BASE + "/api/items/" + item.id + "/download";
     download.setAttribute("download", "");
     download.innerHTML = "<button>Download</button>";
     row.appendChild(download);
@@ -131,7 +133,7 @@ function render(items) {
     remove.addEventListener("click", async () => {
       remove.disabled = true;
       try {
-        await api("/api/items/" + item.id, { method: "DELETE" });
+        await api(BASE + "/api/items/" + item.id, { method: "DELETE" });
         toast("Deleted");
         await refresh();
       } catch (err) {
@@ -152,7 +154,7 @@ async function copyItem(item, button) {
     // permission attached to the click; larger snippets need a fetch first.
     const value = typeof item.text === "string"
       ? item.text
-      : await (await fetch("/api/items/" + item.id + "/raw")).text();
+      : await (await fetch(BASE + "/api/items/" + item.id + "/raw")).text();
     await copyText(value);
     const original = button.textContent;
     button.textContent = "Copied";
@@ -164,7 +166,7 @@ async function copyItem(item, button) {
 
 async function refresh() {
   try {
-    const data = await api("/api/items");
+    const data = await api(BASE + "/api/items");
     render(data.items || []);
   } catch (err) {
     toast(err.message, true);
@@ -178,7 +180,7 @@ async function sendText() {
   if (!value.trim()) { toast("Nothing to send", true); return; }
   els.sendText.disabled = true;
   try {
-    await api("/api/text", {
+    await api(BASE + "/api/text", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: value }),
@@ -196,7 +198,7 @@ async function sendText() {
 function uploadOne(file) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", "/api/files");
+    request.open("POST", BASE + "/api/files");
     request.setRequestHeader("Content-Type", file.type || "application/octet-stream");
     // Header values must be latin-1; percent-encode so unicode names survive.
     request.setRequestHeader("X-Filename", encodeURIComponent(file.name || "upload.bin"));
@@ -273,7 +275,7 @@ els.clearAll.addEventListener("click", async () => {
   if (!confirm("Delete everything on the server?")) return;
   els.clearAll.disabled = true;
   try {
-    const data = await api("/api/items", { method: "DELETE" });
+    const data = await api(BASE + "/api/items", { method: "DELETE" });
     toast("Cleared " + data.deleted + " item" + (data.deleted === 1 ? "" : "s"));
     await refresh();
   } catch (err) {

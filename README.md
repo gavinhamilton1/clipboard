@@ -34,7 +34,8 @@ All optional, via environment variables:
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `CLIPBOARD_HOST` | `0.0.0.0` | Bind address. Use `127.0.0.1` behind a reverse proxy. |
-| `CLIPBOARD_PORT` | `8000` | Bind port. |
+| `CLIPBOARD_PORT` | `$PORT`, else `8000` | Bind port. Hosts like Render inject `$PORT`; leave both unset there. |
+| `CLIPBOARD_BASE_PATH` | `""` (root) | Mount the whole app under a prefix, e.g. `/clip`. |
 | `CLIPBOARD_DATA_DIR` | `./storage` | Where blobs and metadata are written. |
 | `CLIPBOARD_MAX_BYTES` | `104857600` (100 MiB) | Largest accepted upload. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Items older than this are deleted on the next request. `0` disables expiry. |
@@ -47,7 +48,9 @@ CLIPBOARD_DATA_DIR=/var/lib/clipboard \
 CLIPBOARD_MAX_AGE_HOURS=6 python3 app.py
 ```
 
-`deploy/` has example nginx, Caddy, and systemd configs.
+`deploy/` has example nginx, Caddy, and systemd configs, plus
+[`deploy/RENDER.md`](deploy/RENDER.md) for deploying to Render under a subpath such
+as `https://dpop.fun/clip`.
 
 ## Keeping it out of search engines and crawlers
 
@@ -76,6 +79,12 @@ instance from anywhere public.
 | `GET` | `/api/items/<id>/download` | Fetch the content as an attachment. |
 | `DELETE` | `/api/items/<id>` | Delete one item. |
 | `DELETE` | `/api/items` | Delete everything. |
+| `GET` | `/healthz` | Liveness check, for platform health checks. |
+
+When `CLIPBOARD_BASE_PATH` is set, every path above sits under it
+(`/clip/api/items`, and so on). `/robots.txt` and `/healthz` answer at the true root
+as well, since crawlers only read robots.txt from the domain root and health checks
+are often configured without the prefix.
 
 So you can drive it from a shell too:
 
@@ -93,8 +102,10 @@ curl -X DELETE http://server:8000/api/items
 ## Scope
 
 This first iteration has **no authentication, no TLS, and no per-user separation** —
-anyone who can reach the port can read, write, and delete everything. Run it on a
-trusted network (LAN, VPN, or Tailscale), not on the open internet.
+anyone who can reach the port can read, write, and delete everything. On a LAN, VPN,
+or Tailscale that is fine. On a public host it means anyone who finds the URL has the
+same access you do; the `noindex` rules keep it out of search results, but that is
+obscurity, not access control.
 
 Storage is a flat directory of `<uuid>.blob` + `<uuid>.json` pairs. Item ids are
 random UUID4 hex and are validated against `^[0-9a-f]{32}$` before touching the
