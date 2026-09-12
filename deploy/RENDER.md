@@ -14,8 +14,11 @@ Attach `dpop.fun` as a custom domain on this service and let the app serve the
 
     CLIPBOARD_BASE_PATH=/clip
 
-`https://dpop.fun/clip` serves the page; `https://dpop.fun/` redirects to it.
-Nothing else on the domain is reachable.
+`https://dpop.fun/clip` serves the page. The domain root serves a plain holding
+page (`static/root.html`) that says nothing about the clipboard and links nowhere,
+so `https://dpop.fun/` does not open — or hint at — the clip page. Edit that file,
+or point `CLIPBOARD_ROOT_PAGE` at your own HTML, to put something else there.
+Every other path on the domain 404s.
 
 ### Case B — something else already owns `dpop.fun`
 
@@ -62,6 +65,7 @@ Environment variables:
 | --- | --- | --- |
 | `CLIPBOARD_BASE_PATH` | `/clip` | Serve under the subpath. Leave empty to serve at the root. |
 | `CLIPBOARD_DATA_DIR` | `/tmp/clipboard` | Render's disk is ephemeral anyway; `/tmp` makes that explicit. |
+| `CLIPBOARD_ROOT_PAGE` | *(unset)* | Only if you want a holding page other than `static/root.html` at the domain root. |
 | `CLIPBOARD_MAX_BYTES` | `52428800` | 50 MiB. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Reap anything you forgot to clear. |
 

@@ -7,6 +7,8 @@ Configuration (environment variables):
     CLIPBOARD_HOST          bind address            (default 0.0.0.0)
     CLIPBOARD_PORT          bind port               (default $PORT, else 8000)
     CLIPBOARD_BASE_PATH     mount point, e.g. /clip (default "", the root)
+    CLIPBOARD_ROOT_PAGE     holding page served at / when mounted under a prefix
+                            (default static/root.html)
     CLIPBOARD_DATA_DIR      storage directory       (default ./storage)
     CLIPBOARD_MAX_BYTES     max upload size         (default 104857600 = 100 MiB)
     CLIPBOARD_MAX_AGE_HOURS auto-delete items older (default 24, 0 disables)
@@ -43,6 +45,7 @@ HOST = os.environ.get("CLIPBOARD_HOST", "0.0.0.0")
 # PORT is what Render (and most PaaS hosts) inject; CLIPBOARD_PORT wins locally.
 PORT = int(os.environ.get("CLIPBOARD_PORT") or os.environ.get("PORT") or 8000)
 BASE_PATH = normalize_base_path(os.environ.get("CLIPBOARD_BASE_PATH", ""))
+ROOT_PAGE = Path(os.environ.get("CLIPBOARD_ROOT_PAGE", STATIC_DIR / "root.html"))
 DATA_DIR = Path(os.environ.get("CLIPBOARD_DATA_DIR", BASE_DIR / "storage")).resolve()
 ITEMS_DIR = DATA_DIR / "items"
 MAX_BYTES = int(os.environ.get("CLIPBOARD_MAX_BYTES", str(100 * 1024 * 1024)))
@@ -253,8 +256,10 @@ class Handler(BaseHTTPRequestHandler):
                     # Not strictly needed (links are absolute), but a bare mount
                     # point should still land on the app rather than 404.
                     return self.send_redirect(BASE_PATH + "/")
-                if path in ("/", ""):
-                    return self.send_redirect(BASE_PATH + "/")
+                if path in ("/", "", "/index.html"):
+                    # The domain root is deliberately not the app: serving a
+                    # holding page here keeps the clipboard at its own URL.
+                    return self.serve_root_page()
                 if path.startswith(BASE_PATH + "/"):
                     path = path[len(BASE_PATH):]
                 elif path not in ("/robots.txt", "/healthz"):
@@ -308,6 +313,13 @@ class Handler(BaseHTTPRequestHandler):
         self._base_headers("text/plain; charset=utf-8", 0)
         self.send_header("Location", location)
         self.end_headers()
+
+    def serve_root_page(self) -> None:
+        try:
+            body = ROOT_PAGE.read_bytes()
+        except OSError:
+            body = b"<!DOCTYPE html><title>Nothing here</title><p>Nothing to see here."
+        self.send_bytes(HTTPStatus.OK, body, "text/html; charset=utf-8")
 
     def serve_index(self) -> None:
         """The page is templated so every URL it emits carries the mount prefix."""
@@ -432,6 +444,8 @@ def main() -> None:
     server.daemon_threads = True
     print(f"clipboard serving on http://{HOST}:{PORT}{BASE_PATH}/")
     print(f"  mounted:   {BASE_PATH or '/'}")
+    if BASE_PATH:
+        print(f"  root page: {ROOT_PAGE}")
     print(f"  storage:   {DATA_DIR}")
     print(f"  max size:  {MAX_BYTES} bytes")
     print(f"  max age:   {'disabled' if MAX_AGE_SECONDS <= 0 else f'{MAX_AGE_SECONDS / 3600:g}h'}")

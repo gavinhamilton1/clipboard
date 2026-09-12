@@ -36,6 +36,7 @@ All optional, via environment variables:
 | `CLIPBOARD_HOST` | `0.0.0.0` | Bind address. Use `127.0.0.1` behind a reverse proxy. |
 | `CLIPBOARD_PORT` | `$PORT`, else `8000` | Bind port. Hosts like Render inject `$PORT`; leave both unset there. |
 | `CLIPBOARD_BASE_PATH` | `""` (root) | Mount the whole app under a prefix, e.g. `/clip`. |
+| `CLIPBOARD_ROOT_PAGE` | `static/root.html` | Holding page served at `/` when a base path is set, so the domain root is not the clipboard. |
 | `CLIPBOARD_DATA_DIR` | `./storage` | Where blobs and metadata are written. |
 | `CLIPBOARD_MAX_BYTES` | `104857600` (100 MiB) | Largest accepted upload. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Items older than this are deleted on the next request. `0` disables expiry. |
