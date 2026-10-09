@@ -9,6 +9,8 @@ Configuration (environment variables):
     CLIPBOARD_BASE_PATH     mount point            (default /clip; "" = root)
     CLIPBOARD_ROOT_PAGE     holding page served at / when mounted under a prefix
                             (default static/root.html)
+    CLIPBOARD_PAGES_DIR     extra static pages, served at /<name>
+                            (default ./pages)
     CLIPBOARD_DATA_DIR      storage directory       (default ./storage)
     CLIPBOARD_MAX_BYTES     max upload size         (default 104857600 = 100 MiB)
     CLIPBOARD_MAX_AGE_HOURS auto-delete items older (default 24, 0 disables)
@@ -17,6 +19,7 @@ Configuration (environment variables):
 from __future__ import annotations
 
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -50,6 +53,9 @@ PORT = int(os.environ.get("CLIPBOARD_PORT") or os.environ.get("PORT") or 8000)
 DEFAULT_BASE_PATH = "/clip"
 BASE_PATH = normalize_base_path(os.environ.get("CLIPBOARD_BASE_PATH", DEFAULT_BASE_PATH))
 ROOT_PAGE = Path(os.environ.get("CLIPBOARD_ROOT_PAGE", STATIC_DIR / "root.html"))
+# Standalone pages served alongside the clipboard: pages/ingress.html -> /ingress,
+# or pages/<name>/index.html plus its assets -> /<name>/... for a multi-file build.
+PAGES_DIR = Path(os.environ.get("CLIPBOARD_PAGES_DIR", BASE_DIR / "pages")).resolve()
 DATA_DIR = Path(os.environ.get("CLIPBOARD_DATA_DIR", BASE_DIR / "storage")).resolve()
 ITEMS_DIR = DATA_DIR / "items"
 MAX_BYTES = int(os.environ.get("CLIPBOARD_MAX_BYTES", str(100 * 1024 * 1024)))
@@ -63,6 +69,17 @@ ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
 # Sent on every response, so nothing here gets indexed even if it is exposed.
 ROBOTS_TAG = "noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate"
+
+# mimetypes misses a few things a built front end commonly ships.
+EXTRA_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".mjs": "text/javascript; charset=utf-8",
+    ".wasm": "application/wasm",
+    ".woff2": "font/woff2",
+    ".glb": "model/gltf-binary",
+    ".gltf": "model/gltf+json",
+    ".map": "application/json",
+}
 
 STATIC_FILES = {
     "/": ("index.html", "text/html; charset=utf-8"),
@@ -166,6 +183,32 @@ def list_items() -> list[dict]:
     return items
 
 
+def resolve_page(rel: str) -> Path | None:
+    """Map a URL path to a file under PAGES_DIR, or None if there isn't one."""
+    rel = rel.strip("/")
+    if not rel or "\x00" in rel:
+        return None
+    for candidate in (PAGES_DIR / f"{rel}.html", PAGES_DIR / rel / "index.html", PAGES_DIR / rel):
+        try:
+            resolved = candidate.resolve()
+        except (OSError, ValueError):
+            continue
+        # resolve() first, then check containment, so ../ cannot escape PAGES_DIR.
+        if resolved.is_file() and PAGES_DIR in resolved.parents:
+            return resolved
+    return None
+
+
+def page_content_type(path: Path) -> str:
+    suffix = path.suffix.lower()
+    if suffix in EXTRA_TYPES:
+        return EXTRA_TYPES[suffix]
+    guessed, _ = mimetypes.guess_type(path.name)
+    if guessed and guessed.startswith("text/"):
+        return f"{guessed}; charset=utf-8"
+    return guessed or "application/octet-stream"
+
+
 def new_id() -> str:
     return uuid.uuid4().hex
 
@@ -188,18 +231,19 @@ class Handler(BaseHTTPRequestHandler):
 
     # ---- helpers -------------------------------------------------------- #
 
-    def _base_headers(self, content_type: str, length: int) -> None:
+    def _base_headers(self, content_type: str, length: int,
+                      cache: str = "no-store, max-age=0") -> None:
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(length))
         self.send_header("X-Robots-Tag", ROBOTS_TAG)
         self.send_header("Referrer-Policy", "no-referrer")
         self.send_header("X-Content-Type-Options", "nosniff")
-        self.send_header("Cache-Control", "no-store, max-age=0")
+        self.send_header("Cache-Control", cache)
 
     def send_bytes(self, status: int, body: bytes, content_type: str,
-                   extra: dict | None = None) -> None:
+                   extra: dict | None = None, cache: str = "no-store, max-age=0") -> None:
         self.send_response(status)
-        self._base_headers(content_type, len(body))
+        self._base_headers(content_type, len(body), cache)
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -269,7 +313,10 @@ class Handler(BaseHTTPRequestHandler):
                 elif path not in ("/robots.txt", "/healthz"):
                     # Crawlers only ever read robots.txt from the domain root, and
                     # a platform health check may be configured without the prefix,
-                    # so those two stay reachable there; everything else does not.
+                    # so those two stay reachable there. Anything else is either a
+                    # standalone page or nothing at all.
+                    if method == "GET" and self.serve_page(path):
+                        return
                     return self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
 
             if method == "GET" and path == "/healthz":
@@ -299,6 +346,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_error_json(HTTPStatus.METHOD_NOT_ALLOWED,
                                             "Method not allowed.")
 
+            if method == "GET" and self.serve_page(path):
+                return
             self.send_error_json(HTTPStatus.NOT_FOUND, "Not found.")
         except BrokenPipeError:
             pass
@@ -317,6 +366,31 @@ class Handler(BaseHTTPRequestHandler):
         self._base_headers("text/plain; charset=utf-8", 0)
         self.send_header("Location", location)
         self.end_headers()
+
+    def serve_page(self, path: str) -> bool:
+        """Serve a standalone page from pages/. False if the path isn't one."""
+        target = resolve_page(path)
+        if target is None:
+            return False
+        try:
+            stat = target.stat()
+            body = target.read_bytes()
+        except OSError:
+            return False
+
+        # These builds are large and change only on deploy, so let the browser
+        # keep a copy and revalidate rather than refetch it on every visit.
+        etag = f'W/"{int(stat.st_mtime)}-{stat.st_size:x}"'
+        if self.headers.get("If-None-Match") == etag:
+            self.send_response(HTTPStatus.NOT_MODIFIED)
+            self._base_headers(page_content_type(target), 0, "no-cache")
+            self.send_header("ETag", etag)
+            self.end_headers()
+            return True
+
+        self.send_bytes(HTTPStatus.OK, body, page_content_type(target),
+                        {"ETag": etag}, cache="no-cache")
+        return True
 
     def serve_root_page(self) -> None:
         try:
@@ -450,6 +524,8 @@ def main() -> None:
     print(f"  mounted:   {BASE_PATH or '/'}")
     if BASE_PATH:
         print(f"  root page: {ROOT_PAGE}")
+    pages = sorted(p.stem for p in PAGES_DIR.glob("*.html")) if PAGES_DIR.is_dir() else []
+    print(f"  pages:     {', '.join('/' + name for name in pages) if pages else 'none'}")
     print(f"  storage:   {DATA_DIR}")
     print(f"  max size:  {MAX_BYTES} bytes")
     print(f"  max age:   {'disabled' if MAX_AGE_SECONDS <= 0 else f'{MAX_AGE_SECONDS / 3600:g}h'}")

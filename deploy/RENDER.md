@@ -12,7 +12,8 @@ URL you want, and the app supports both — the only difference is one env var.
 Attach `dpop.fun` as a custom domain on this service. The app serves the `/clip`
 prefix by default, so there is nothing to configure.
 
-`https://dpop.fun/clip` serves the page. The domain root serves a plain holding
+`https://dpop.fun/clip` serves the clipboard, and anything in `pages/` is served
+beside it (`pages/ingress.html` → `https://dpop.fun/ingress`). The domain root serves a plain holding
 page (`static/root.html`) that says nothing about the clipboard and links nowhere,
 so `https://dpop.fun/` does not open — or hint at — the clip page. Edit that file,
 or point `CLIPBOARD_ROOT_PAGE` at your own HTML, to put something else there.

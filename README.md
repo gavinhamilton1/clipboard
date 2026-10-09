@@ -39,6 +39,7 @@ All optional, via environment variables:
 | `CLIPBOARD_PORT` | `$PORT`, else `8000` | Bind port. Hosts like Render inject `$PORT`; leave both unset there. |
 | `CLIPBOARD_BASE_PATH` | `/clip` | Prefix the app mounts under. Set to another prefix to move it, or to empty to serve at the root. |
 | `CLIPBOARD_ROOT_PAGE` | `static/root.html` | Holding page served at `/` whenever a base path is in use, so the domain root is not the clipboard. |
+| `CLIPBOARD_PAGES_DIR` | `./pages` | Directory of standalone static pages served next to the clipboard. |
 | `CLIPBOARD_DATA_DIR` | `./storage` | Where blobs and metadata are written. |
 | `CLIPBOARD_MAX_BYTES` | `104857600` (100 MiB) | Largest accepted upload. |
 | `CLIPBOARD_MAX_AGE_HOURS` | `24` | Items older than this are deleted on the next request. `0` disables expiry. |
@@ -70,6 +71,31 @@ Three layers, all included:
 
 A crawler has to be pointed at a URL to find it, so also avoid linking to the
 instance from anywhere public.
+
+## Standalone pages
+
+Anything in `pages/` is served alongside the clipboard, so one deployment can host
+unrelated static pages:
+
+| File | URL |
+| --- | --- |
+| `pages/ingress.html` | `/ingress` (and `/ingress/`) |
+| `pages/<name>/index.html` + assets | `/<name>/` and `/<name>/<asset>` |
+
+Drop a file in, commit, redeploy — no code change. Paths cannot escape `pages/`, so
+nothing else in the repo is reachable over HTTP. Pages are sent with an `ETag` and
+`Cache-Control: no-cache`, so a browser revalidates instead of refetching a large
+build on every visit, and they carry the same `noindex` headers as the rest of the
+site. Drop that header for one page only if you actually want it indexed.
+
+### Pages currently deployed
+
+- **`pages/ingress.html`** → `/ingress` — the Ingress Architecture Explorer. This is
+  a build artifact, copied verbatim from `dist/IngressExplorer.html` in
+  [`gavinhamilton1/ingress-3d-arch`](https://github.com/gavinhamilton1/ingress-3d-arch)
+  at commit `a64657f`. It is fully self-contained (no external scripts, styles,
+  fetches, or asset files). Refresh it by rebuilding there and copying the file
+  across again — do not hand-edit it here.
 
 ## HTTP API
 
